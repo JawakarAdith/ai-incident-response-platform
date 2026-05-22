@@ -1,0 +1,57 @@
+# ── Web Framework ──────────────────────────────────────────────────────────
+# FastAPI: handles all HTTP endpoints (/workflow/run, /auth/login, etc.)
+fastapi==0.111.0
+# Uvicorn: the server that RUNS FastAPI (like Apache but for Python)
+uvicorn[standard]==0.29.0
+
+# ── Config & Env ───────────────────────────────────────────────────────────
+# Pydantic: validates data shapes (ensures fields have correct types)
+pydantic==2.7.1
+# Pydantic-settings: reads our .env file into Python classes automatically
+pydantic-settings==2.2.1
+# Python-dotenv: loads .env file into environment variables on startup
+python-dotenv==1.0.1
+
+# ── Auth ───────────────────────────────────────────────────────────────────
+# Python-jose: creates and verifies JWT tokens (login sessions)
+python-jose[cryptography]==3.3.0
+# Passlib: hashes passwords before storing in DB (uses bcrypt algorithm)
+passlib[bcrypt]==1.7.4
+
+# ── Database ───────────────────────────────────────────────────────────────
+# SQLAlchemy: ORM — write Python classes instead of raw SQL queries
+sqlalchemy==2.0.30
+# Asyncpg: fast async PostgreSQL driver (works with FastAPI's async nature)
+asyncpg==0.29.0
+# Alembic: database migrations — tracks and applies DB schema changes
+alembic==1.13.1
+
+# ── AI / Agents ────────────────────────────────────────────────────────────
+# Numpy: required by LangChain internally
+numpy==2.2.0
+# Langchain: framework for building AI chains and agents
+langchain==0.2.1
+# Langchain-openai: connects LangChain to OpenAI GPT models
+langchain-openai==0.1.8
+# Langchain-community: extra tools and integrations for LangChain
+langchain-community==0.2.1
+# Langgraph: builds our multi-agent workflow graph — core of this project
+langgraph==0.1.1
+
+# ── Tool Integrations ──────────────────────────────────────────────────────
+# Slack-sdk: sends messages to Slack channels from our agents
+slack-sdk==3.27.1
+# Jira: creates and updates tickets in Jira from our agents
+jira==3.8.0
+# Httpx: makes HTTP requests to any external REST API
+httpx==0.27.0
+
+# ── Reliability ────────────────────────────────────────────────────────────
+# Tenacity: retry logic — if Slack API fails, retry 3 times automatically
+tenacity==8.3.0
+
+# ── Logging ────────────────────────────────────────────────────────────────
+# Structlog: structured logging — outputs clean JSON logs in production
+structlog==24.1.0
+# Rich: pretty coloured output in terminal during local development
+rich==13.7.1

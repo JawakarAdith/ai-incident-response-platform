@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+env/
+.env
+*.env
+
+# Database
+*.db
+*.sqlite3
+
+# ChromaDB data
+chroma_db/
+chromadb/
+
+# Model cache (90MB — don't push this)
+model_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Alembic (keep the folder, ignore generated files)
+alembic/versions/*.pyc
