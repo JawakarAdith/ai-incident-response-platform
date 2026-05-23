@@ -39,3 +39,6 @@ Thumbs.db
 
 # Alembic (keep the folder, ignore generated files)
 alembic/versions/*.pyc
+
+
+backend/app/core/config.py
