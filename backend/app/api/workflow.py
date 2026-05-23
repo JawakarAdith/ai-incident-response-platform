@@ -180,20 +180,31 @@ async def run_workflow(
         )
 
     except Exception as e:
-        await update_workflow(
-            db=db,
-            workflow_id=db_workflow.id,
-            status="FAILED",
-            output_data={"error": str(e)}
-        )
-        await create_execution_log(
-            db=db,
-            workflow_id=db_workflow.id,
-            level="ERROR",
-            message=f"Workflow failed: {str(e)}",
-            agent_name=None
-        )
-        raise HTTPException(status_code=500, detail=str(e))
+        error_message = str(e)
+
+    # Extract agent name from error message
+    # Format is always "AgentName failed: reason"
+    agent_name = None
+    if "failed:" in error_message:
+        agent_name = error_message.split(" failed:")[0]
+
+    await update_workflow(
+        db=db,
+        workflow_id=db_workflow.id,
+        status="FAILED",
+        output_data={
+            "error": error_message,
+            "failed_agent": agent_name
+        }
+    )
+    await create_execution_log(
+        db=db,
+        workflow_id=db_workflow.id,
+        level="ERROR",
+        message=error_message,     # ← contains both agent name and reason
+        agent_name=agent_name      # ← specific agent, not None
+    )
+    raise HTTPException(status_code=500, detail=error_message)
 
 
 @router.get("/history")

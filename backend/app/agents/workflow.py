@@ -27,104 +27,103 @@ class WorkflowState(TypedDict):
 
 async def planner_node(state: WorkflowState) -> dict:
     print("🧠 Planner Agent running...")
-    plan = await run_planner(
-        user_request=state["user_request"],
-        logs=state.get("logs")
-    )
-    print("✅ Plan created!")
-    return {"plan": plan}
+    try:
+        plan = await run_planner(
+            user_request=state["user_request"],
+            logs=state.get("logs")
+        )
+        print("✅ Plan created!")
+        return {"plan": plan}
+    except Exception as e:
+        raise RuntimeError(f"PlannerAgent failed: {str(e)}")
 
 
 async def rag_search_node(state: WorkflowState) -> dict:
     print("🔍 RAG Memory searching...")
-    from app.memory.rag_service import get_rag_context
-    problem = f"{state.get('user_request', '')} {state.get('logs', '')[:200]}"
-    rag_context = await get_rag_context(problem)
-    if rag_context:
-        print("✅ Found similar past incidents!")
-    else:
-        print("📭 No similar past incidents found")
-    return {"rag_context": rag_context}
-
+    try:
+        from app.memory.rag_service import get_rag_context
+        problem = f"{state.get('user_request', '')} {state.get('logs', '')[:200]}"
+        rag_context = await get_rag_context(problem)
+        if rag_context:
+            print("✅ Found similar past incidents!")
+        else:
+            print("📭 No similar past incidents found")
+        return {"rag_context": rag_context}
+    except Exception as e:
+        raise RuntimeError(f"RAGSearchAgent failed: {str(e)}")
 
 async def log_analysis_node(state: WorkflowState) -> dict:
     print("🔍 Log Analysis Agent running...")
-    root_cause = await run_log_analysis(
-        logs=state.get("logs", "No logs provided"),
-        plan=state.get("plan")
-    )
-    print("✅ Root cause found!")
-    return {"root_cause": root_cause}
+    try:
+        root_cause = await run_log_analysis(
+            logs=state.get("logs", "No logs provided"),
+            plan=state.get("plan")
+        )
+        print("✅ Root cause found!")
+        return {"root_cause": root_cause}
+    except Exception as e:
+        raise RuntimeError(f"LogAnalysisAgent failed: {str(e)}")
 
 
 async def recommendation_node(state: WorkflowState) -> dict:
     print("💡 Recommendation Agent running...")
-    recommendation = await run_recommendation(
-        root_cause=state.get("root_cause", ""),
-        logs=state.get("logs"),
-        rag_context=state.get("rag_context")
-    )
-    print("✅ Recommendation created!")
-    return {"recommendation": recommendation}
-
+    try:
+        recommendation = await run_recommendation(
+            root_cause=state.get("root_cause", ""),
+            logs=state.get("logs"),
+            rag_context=state.get("rag_context")
+        )
+        print("✅ Recommendation created!")
+        return {"recommendation": recommendation}
+    except Exception as e:
+        raise RuntimeError(f"RecommendationAgent failed: {str(e)}")
 
 async def validation_node(state: WorkflowState) -> dict:
-    """
-    Scores the recommendation BEFORE any tools run.
-    Only uses: user_request, root_cause, recommendation.
-    Does NOT need jira_ticket_id or slack_sent.
-    """
     print("✅ Validation Agent running...")
-    result = await run_validation(
-        user_request=state["user_request"],
-        root_cause=state.get("root_cause", ""),
-        recommendation=state.get("recommendation", ""),
-        jira_ticket_id=None,   # not created yet — intentional
-        slack_sent=None        # not sent yet — intentional
-    )
-    score = result.get("confidence_score", 0.70)
-    print(f"✅ Confidence score: {score}")
-    return {
-        "confidence_score": score,
-        "validation_details": result,
-        "low_confidence": score < 0.75   # ← flag carries into tool_execution
-    }
-
+    try:
+        result = await run_validation(
+            user_request=state["user_request"],
+            root_cause=state.get("root_cause", ""),
+            recommendation=state.get("recommendation", ""),
+            jira_ticket_id=None,
+            slack_sent=None
+        )
+        score = result.get("confidence_score", 0.70)
+        print(f"✅ Confidence score: {score}")
+        return {
+            "confidence_score": score,
+            "validation_details": result,
+            "low_confidence": score < 0.75
+        }
+    except Exception as e:
+        raise RuntimeError(f"ValidationAgent failed: {str(e)}")
 
 async def tool_execution_node(state: WorkflowState) -> dict:
-    """
-    Always creates Jira + sends Slack.
-    Low confidence → adds WARNING label + warning message.
-    High confidence → normal ticket + clean message.
-    """
     print("🔧 Tool Execution Agent running...")
+    try:
+        from app.tools.jira_tool import create_jira_ticket
+        from app.tools.slack_tool import send_incident_notification
 
-    from app.tools.jira_tool import create_jira_ticket
-    from app.tools.slack_tool import send_incident_notification
+        root_cause = state.get("root_cause", "Unknown issue")
+        recommendation = state.get("recommendation", "Not available")
+        score = state.get("confidence_score", 0.0)
+        is_low_confidence = state.get("low_confidence", False)
 
-    root_cause = state.get("root_cause", "Unknown issue")
-    recommendation = state.get("recommendation", "Not available")
-    score = state.get("confidence_score", 0.0)
-    is_low_confidence = state.get("low_confidence", False)
+        if is_low_confidence:
+            title = f"⚠️ [LOW CONFIDENCE] Incident: {root_cause[:80]}".replace('\n', ' ')
+        else:
+            title = f"Incident: {root_cause[:100]}".replace('\n', ' ')
 
-    # ── Jira ticket title ──────────────────────────────────
-    if is_low_confidence:
-        title = f"⚠️ [LOW CONFIDENCE] Incident: {root_cause[:80]}".replace('\n', ' ')
-    else:
-        title = f"Incident: {root_cause[:100]}".replace('\n', ' ')
-
-    # ── Jira ticket description ────────────────────────────
-    confidence_warning = ""
-    if is_low_confidence:
-        confidence_warning = f"""
+        confidence_warning = ""
+        if is_low_confidence:
+            confidence_warning = f"""
 ⚠️ WARNING — LOW CONFIDENCE ANALYSIS
 AI confidence score: {score:.0%}
 This ticket was auto-generated but requires human verification
 before acting on the recommendation below.
 {'─' * 50}
 """
-
-    description = f"""
+        description = f"""
 Workflow Automation Platform — Auto Generated Ticket
 {confidence_warning}
 User Request:
@@ -140,30 +139,29 @@ Logs:
 {state.get('logs', 'No logs provided')[:500]}
 
 Confidence Score: {score:.0%}
-    """
+        """
 
-    # ── Create Jira ticket ─────────────────────────────────
-    jira_ticket_id = await create_jira_ticket(
-        title=title,
-        description=description,
-        priority="High" if not is_low_confidence else "Medium"
-    )
-    print(f"✅ Jira ticket created: {jira_ticket_id}")
+        jira_ticket_id = await create_jira_ticket(
+            title=title,
+            description=description,
+            priority="High" if not is_low_confidence else "Medium"
+        )
+        print(f"✅ Jira ticket created: {jira_ticket_id}")
 
-    # ── Send Slack notification ────────────────────────────
-    slack_sent = await send_incident_notification(
-        jira_ticket_id=jira_ticket_id,
-        root_cause=root_cause[:200],
-        recommendation=recommendation[:200],
-        confidence_score=score
-    )
-    print(f"✅ Slack notified: {slack_sent}")
+        slack_sent = await send_incident_notification(
+            jira_ticket_id=jira_ticket_id,
+            root_cause=root_cause[:200],
+            recommendation=recommendation[:200],
+            confidence_score=score
+        )
+        print(f"✅ Slack notified: {slack_sent}")
 
-    return {
-        "jira_ticket_id": jira_ticket_id,
-        "slack_sent": slack_sent
-    }
-
+        return {
+            "jira_ticket_id": jira_ticket_id,
+            "slack_sent": slack_sent
+        }
+    except Exception as e:
+        raise RuntimeError(f"ToolExecutionAgent failed: {str(e)}")
 
 # ── Conditional edge ───────────────────────────────────────
 
